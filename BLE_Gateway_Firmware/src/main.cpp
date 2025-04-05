@@ -1,30 +1,56 @@
 #include <Arduino.h>
+#include <WiFi.h>
 #include <BLEDevice.h>
 #include <BLEUtils.h>
 #include <BLEScan.h>
-#include <map>
+
+#include <wificonfig.h>
+
+const char* serverIP = "192.168.0.182";
+const uint16_t serverPort = 8080;
 
 #define GATEWAY_ID "1"
 #define SCAN_TIME 5
 
-std::vector<String> allowedMacs = {
-  "48872d9cfb38",
-};
+const char* allowedMacs[] = { "48872d9cfb38" };
+const int allowedMacsCount = sizeof(allowedMacs) / sizeof(allowedMacs[0]);
+
 
 BLEScan* pBLEScan;
+WiFiClient client;
+
+unsigned long lastReconnectAttempt = 0;
+const unsigned long reconnectInterval = 20000;
 
 String formatMacAddress(BLEAddress address) {
-  String raw = address.toString().c_str();
-  raw.toLowerCase();
-  raw.replace(":", "");
-  return raw;
+  String mac = address.toString().c_str();
+  mac.replace(":", "");
+  return mac;
 }
 
-bool isAllowed(String mac, String name) {
-  for (String allowed : allowedMacs) {
-    if (mac == allowed) return true;
+
+bool isAllowed(const String& mac, const String& name) {
+  for (int i = 0; i < allowedMacsCount; i++) {
+    if (mac == allowedMacs[i]) return true;
   }
   return false;
+}
+
+void connectToWiFi() {
+  if (WiFi.status() != WL_CONNECTED) {
+    Serial.println("Connecting to WiFi...");
+    WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+  }
+}
+
+void reconnectIfNeeded() {
+  if (WiFi.status() != WL_CONNECTED) {
+    unsigned long now = millis();
+    if (now - lastReconnectAttempt > reconnectInterval) {
+      lastReconnectAttempt = now;
+      connectToWiFi();
+    }
+  }
 }
 
 class MyAdvertisedDeviceCallbacks : public BLEAdvertisedDeviceCallbacks {
@@ -34,24 +60,36 @@ class MyAdvertisedDeviceCallbacks : public BLEAdvertisedDeviceCallbacks {
     int rssi = abs(advertisedDevice.getRSSI());
 
     if (isAllowed(mac, name)) {
-      Serial.printf("%s,%s,%d\n", GATEWAY_ID, mac.c_str(), rssi);
+      String output = GATEWAY_ID + String(",") + mac + String(",") + rssi;
+      Serial.println(output);
+      if (WiFi.status() == WL_CONNECTED && client.connected()) {
+        client.println(output);
+      }
     }
   }
 };
 
 void setup() {
   Serial.begin(115200);
-  Serial.println("BLE Gateway Started");
-
+  delay(2000);
   BLEDevice::init("BLE_Gateway");
   pBLEScan = BLEDevice::getScan(); 
   pBLEScan->setAdvertisedDeviceCallbacks(new MyAdvertisedDeviceCallbacks());
   pBLEScan->setInterval(100);
   pBLEScan->setWindow(99);
-  pBLEScan->setActiveScan(true); 
+  pBLEScan->setActiveScan(true);
+
+  connectToWiFi();
 }
 
 void loop() {
+  reconnectIfNeeded();
+
+  if (WiFi.status() == WL_CONNECTED && !client.connected()) {
+    Serial.println("Connecting to server...");
+    client.connect(serverIP, serverPort);
+  }
+
   BLEScanResults foundDevices = pBLEScan->start(SCAN_TIME, false);
   pBLEScan->clearResults();
   delay(1000);
