@@ -9,7 +9,7 @@
 const char* serverIP = "192.168.0.182";
 const uint16_t serverPort = 8080;
 
-#define GATEWAY_ID "1"
+#define GATEWAY_ID "2"
 #define SCAN_TIME 5
 
 const char* allowedMacs[] = { "48872d9cfb38" };

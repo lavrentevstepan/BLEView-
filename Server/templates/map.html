@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Карта устройств</title>
+    <style>
+        #map {
+            width: 500px;
+            height: 500px;
+            border: 1px solid black;
+            position: relative;
+            background-color: #f9f9f9;
+        }
+        .device {
+            width: 10px;
+            height: 10px;
+            background: red;
+            border-radius: 50%;
+            position: absolute;
+            transform: translate(-5px, -5px);
+        }
+        .label {
+            position: absolute;
+            font-size: 12px;
+            transform: translate(-50%, -150%);
+            white-space: nowrap;
+            background: rgba(255,255,255,0.8);
+            padding: 2px 4px;
+            border-radius: 4px;
+            border: 1px solid #ccc;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+    <h1>Карта устройств (100×100)</h1>
+    <div id="map"></div>
+
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <script>
+        const socket = io();
+        const map = document.getElementById("map");
+
+        socket.on("update_devices", function(devices) {
+            map.innerHTML = "";
+
+            for (const [id, pos] of Object.entries(devices)) {
+                // Точка устройства
+                const device = document.createElement("div");
+                device.className = "device";
+                device.style.left = `${pos.x}%`;
+                device.style.top = `${pos.y}%`;
+
+                // Подпись к точке
+                const label = document.createElement("div");
+                label.className = "label";
+                label.style.left = `${pos.x}%`;
+                label.style.top = `${pos.y}%`;
+                label.innerText = id;
+
+                map.appendChild(device);
+                map.appendChild(label);
+            }
+        });
+    </script>
+</body>
+</html>
