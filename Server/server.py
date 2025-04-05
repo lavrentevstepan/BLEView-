@@ -30,8 +30,33 @@ def update_devices():
 def index():
     return render_template("map.html")
 
+data_for_triangulation = []
 
-def coordinate_calculation(rssi):
+def rssi_process(input_line):
+    try:
+        gateway_id, device_mac, rssi = input_line.split(",")
+        if len(data_for_triangulation) == 0:
+            data_for_triangulation.append([int(gateway_id),device_mac,-int(rssi)])
+
+        exist_flag = 1
+
+        for device in data_for_triangulation:
+            if device[0] == int(gateway_id) and device[1] == device_mac:
+                device[2] = -int(rssi)
+                exist_flag = 0
+        if(exist_flag):
+            data_for_triangulation.append([int(gateway_id),device_mac,-int(rssi)])
+        
+        print(f"=== data_for_triangulation[{len(data_for_triangulation)}] ===".upper())
+        for device in data_for_triangulation:
+            print(device)
+
+
+    except Exception:
+        print(Exception)
+
+
+def coordinate_calculation():
     pass
 
 
@@ -52,7 +77,8 @@ def handle_client(conn, addr):
                         break
                     for line in data.decode().splitlines():
                         if len(line) != 0:
-                            print(f"[FROM {addr}] {line}")
+                            print(f"handle_client: [FROM {addr}] {line}")
+                            rssi_process(line)
                 except ConnectionResetError:
                     print(f"[!] Connection reset by {addr}")
                     break
