@@ -93,6 +93,8 @@ devices_rssi_data = {}
 
 def coordinate_calculation(n=100, m=100):
     print("\n[+] Checking for devices to triangulate...")
+    for item in devices_rssi_data:
+        print(item)
     for device_mac, rssi_measurements in devices_rssi_data.items():
         if len(rssi_measurements) >= 3:
             print(f"\n[+] Performing triangulation for device: {device_mac} with data:")
