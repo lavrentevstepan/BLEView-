@@ -10,7 +10,6 @@ SERVER_PORT = 8080
 DEVICE_ID = '48872d9cfb38'
 INTERVAL = 5
 
-# Dictionary to keep track of running threads
 threads = {}
 stop_events = {}
 
@@ -92,7 +91,6 @@ if __name__ == "__main__":
             else:
                 print("Invalid command. Enter a number (1-4) or 'q'")
                 
-            # Print running devices
             if threads:
                 print(f"Running devices: {sorted(threads.keys())}")
             else:

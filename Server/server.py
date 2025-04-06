@@ -6,67 +6,142 @@ import random
 from threading import Thread
 import time
 import socket
+import numpy as np
+from scipy.optimize import least_squares
 
 app = Flask(__name__)
 socketio = SocketIO(app)
 
-devices = {
-    "device1": {"x": 50, "y": 50},
-    # "device2": {"x": 30, "y": 70},
-}
+devices = {}
 
 def update_devices():
     while True:
         time.sleep(1)
-        for device_id in devices:
-            devices[device_id]["x"] = random.randint(0, 100)
-            devices[device_id]["y"] = random.randint(0, 100)
         socketio.emit("update_devices", devices)
+
+def update_device_list(device_name, x, y):
+    if device_name in devices:
+        devices[device_name]["x"] = x
+        devices[device_name]["y"] = y
+        print(f"Updated {device_name} coordinates to ({x}, {y})")
+    else:
+        devices[device_name] = {"x": x, "y": y}
+        print(f"Added new device {device_name} with coordinates ({x}, {y})")
 
 @app.route("/")
 def index():
     return render_template("map.html")
 
-data_for_triangulation = []
+# ============ TRIANGULATION ==================
 
-def coordinate_calculation():
-    if len(data_for_triangulation) >= 3:
-        print("\n[+] Performing triangulation with data:")
-        for data in data_for_triangulation:
-            print(data)
-        # TODO: Implement triangulation algorithm here
+def get_receiver_coords(receiver_id, n, m):
+    if receiver_id == 1:
+        return (0, 0)
+    elif receiver_id == 2:
+        return (n, 0)
+    elif receiver_id == 3:
+        return (n, m)
+    elif receiver_id == 4:
+        return (0, m)
     else:
-        print(f"\n[!] Not enough data for triangulation. Current data points: {len(data_for_triangulation)}")
+        raise ValueError("Invalid receiver ID")
+
+
+def rssi_to_distance(rssi, rssi_at_1m=-50, path_loss_exponent=2):
+    # d = 10^((RSSI_at_1m - RSSI) / (10 * n))
+    return 10 ** ((rssi_at_1m - rssi) / (10 * path_loss_exponent))
+
+def triangulation_error(point, receivers, distances):
+    x, y = point
+    error = []
+    for (rx, ry), d in zip(receivers, distances):
+        error.append(np.sqrt((x - rx)**2 + (y - ry)**2) - d)
+    return error
+
+def locate_device(receivers_data, n, m):
+    receivers = []
+    distances = []
+    for receiver_id, mac, rssi in receivers_data:
+        coords = get_receiver_coords(receiver_id, n, m)
+        distance = rssi_to_distance(rssi)
+        receivers.append(coords)
+        distances.append(distance)
+
+    if len(receivers) > 3:
+        combined = list(zip(receivers, distances))
+        combined.sort(key=lambda x: x[1])
+        receivers, distances = zip(*combined[:3])
+
+    initial_guess = np.mean(receivers, axis=0)
+
+    result = least_squares(
+        triangulation_error,
+        initial_guess,
+        args=(receivers, distances),
+        method='lm'
+    )
+
+    x, y = result.x
+    x = max(0, min(n, x))
+    y = max(0, min(m, y))
+
+    return x, y
+
+# ++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+devices_rssi_data = {}
+
+def coordinate_calculation(n=100, m=100):
+    print("\n[+] Checking for devices to triangulate...")
+    for device_mac, rssi_measurements in devices_rssi_data.items():
+        if len(rssi_measurements) >= 3:
+            print(f"\n[+] Performing triangulation for device: {device_mac} with data:")
+            receivers_data = []
+            for gateway_id, rssi in rssi_measurements:
+                print(f"    Gateway ID: {gateway_id}, RSSI: {rssi}")
+                receivers_data.append([gateway_id, device_mac, rssi])
+
+            try:
+                x, y = locate_device(receivers_data, n, m)
+                print(f"[+] Calculated coordinates for {device_mac}: ({x:.2f}, {y:.2f})")
+                update_device_list(device_mac, x, y)
+                print(devices)
+            except Exception as e:
+                print(f"[!] Error during triangulation for {device_mac}: {e}")
+        else:
+            print(f"[!] Not enough data for triangulation for device: {device_mac}. Current data points: {len(rssi_measurements)}")
 
 def rssi_process(input_line):
     try:
-        gateway_id, device_mac, rssi = input_line.split(",")
-        gateway_id = int(gateway_id)
-        rssi = -int(rssi)
+        gateway_id_str, device_mac, rssi_str = input_line.split(",")
+        gateway_id = int(gateway_id_str)
+        rssi = -int(rssi_str)
 
-        found = False
-        for i, device_data in enumerate(data_for_triangulation):
-            if device_data[0] == gateway_id and device_data[1] == device_mac:
-                data_for_triangulation[i][2] = rssi
-                found = True
-                break
-        if not found:
-            data_for_triangulation.append([gateway_id, device_mac, rssi])
+        if device_mac not in devices_rssi_data:
+            devices_rssi_data[device_mac] = []
+        else:
+            devices_rssi_data[device_mac] = [
+                data for data in devices_rssi_data[device_mac] if data[0] != gateway_id
+            ]
+        devices_rssi_data[device_mac].append((gateway_id, rssi))
 
-        print(f"=== data_for_triangulation[{len(data_for_triangulation)}] ===".upper())
-        for device in data_for_triangulation:
-            print(device)
+    except ValueError as e:
+        print(f"[!] Error parsing RSSI data: {e}. Expected format: gateway_id,device_mac,rssi")
+    except Exception as e:
+        print(f"[!] Unexpected error processing RSSI data: {e}")
+
+def triangulation_handle():
+    cycle_counter = 0
+    while True:
+        time.sleep(1)
 
         coordinate_calculation()
+        print(f"================== [{cycle_counter}] ==================")
 
-    except Exception as e:
-        print(f"[!] Error processing RSSI data: {e}")
-
-def clear_triangulation_data():
-    while True:
-        time.sleep(10)
-        print("[!] Clearing data_for_triangulation")
-        data_for_triangulation.clear()
+        cycle_counter = (cycle_counter + 1) % 20
+        if cycle_counter == 9:
+            print("[!] Clearing devices_rssi_data")
+            devices_rssi_data.clear()
 
 HOST = '0.0.0.0'
 PORT = 8080
@@ -82,7 +157,7 @@ def handle_client(conn, addr):
                         print(f"[-] Connection closed by {addr}")
                         break
                     for line in data.decode().splitlines():
-                        if line.strip():  # Проверяем, что строка не пустая после удаления пробельных символов
+                        if line.strip():
                             print(f"handle_client: [FROM {addr}] {line}")
                             rssi_process(line)
                 except ConnectionResetError:
@@ -129,5 +204,5 @@ def run_server():
 if __name__ == "__main__":
     Thread(target=run_server, daemon=True).start()
     Thread(target=update_devices, daemon=True).start()
-    Thread(target=clear_triangulation_data, daemon=True).start()
+    Thread(target=triangulation_handle, daemon=True).start()
     socketio.run(app, host="0.0.0.0", port=5000)
