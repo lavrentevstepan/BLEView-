@@ -7,7 +7,7 @@ import threading
 
 SERVER_HOST = 'localhost'
 SERVER_PORT = 8080
-DEVICE_ID = '48872d9cfb38'
+DEVICE_ID = 'test_mac'
 INTERVAL = 5
 
 threads = {}

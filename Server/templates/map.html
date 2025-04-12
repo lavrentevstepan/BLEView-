@@ -29,28 +29,61 @@
             border: 1px solid #ccc;
             pointer-events: none;
         }
+        .locator-id {
+            position: absolute;
+            font-size: 14px;
+            font-weight: bold;
+            padding: 5px;
+            background-color: rgba(255, 255, 255, 0.7);
+            border-radius: 5px;
+            pointer-events: none;
+        }
+        .top-left {
+            top: 5px;
+            left: 5px;
+        }
+        .top-right {
+            top: 5px;
+            right: 5px;
+        }
+        .bottom-left {
+            bottom: 5px;
+            left: 5px;
+        }
+        .bottom-right {
+            bottom: 5px;
+            right: 5px;
+        }
     </style>
 </head>
 <body>
     <h1>Карта устройств (100×100)</h1>
-    <div id="map"></div>
+    <div id="map">
+        <div class="locator-id top-left" id="locator-1"></div>
+        <div class="locator-id top-right" id="locator-2"></div>
+        <div class="locator-id bottom-left" id="locator-3"></div>
+        <div class="locator-id bottom-right" id="locator-4"></div>
+    </div>
 
     <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
     <script>
         const socket = io();
         const map = document.getElementById("map");
+        const locator1 = document.getElementById("locator-1");
+        const locator2 = document.getElementById("locator-2");
+        const locator3 = document.getElementById("locator-3");
+        const locator4 = document.getElementById("locator-4");
 
         socket.on("update_devices", function(devices) {
-            map.innerHTML = "";
+            const deviceElements = map.querySelectorAll('.device, .label');
+            deviceElements.forEach(el => el.remove());
 
             for (const [id, pos] of Object.entries(devices)) {
-                // Точка устройства
                 const device = document.createElement("div");
                 device.className = "device";
                 device.style.left = `${pos.x}%`;
                 device.style.top = `${pos.y}%`;
 
-                // Подпись к точке
                 const label = document.createElement("div");
                 label.className = "label";
                 label.style.left = `${pos.x}%`;
@@ -61,6 +94,21 @@
                 map.appendChild(label);
             }
         });
+
+        fetch('/')
+            .then(response => response.text())
+            .then(html => {
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(html, 'text/html');
+                const gatewaysData = JSON.parse(doc.getElementById('gateways-data').textContent);
+                locator1.innerText = `ID: 1`;
+                locator2.innerText = `ID: 2`;
+                locator3.innerText = `ID: 3`;
+                locator4.innerText = `ID: 4`;
+            });
     </script>
+    <div style="display: none;" id="gateways-data">
+        {{ gateways|tojson }}
+    </div>
 </body>
 </html>

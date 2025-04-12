@@ -2,7 +2,6 @@
 
 from flask import Flask, render_template
 from flask_socketio import SocketIO
-import random
 from threading import Thread
 import time
 import socket
@@ -30,33 +29,44 @@ def update_device_list(device_name, x, y):
 
 @app.route("/")
 def index():
-    return render_template("map.html")
+    gateways = {
+        1: {"x": 0, "y": 0},
+        2: {"x": 100, "y": 0},
+        3: {"x": 100, "y": 100},
+        4: {"x": 0, "y": 100},
+    }
+    return render_template("map.html", gateways=gateways)
 
 # ============ TRIANGULATION ==================
-
-def get_receiver_coords(receiver_id, n, m):
-    if receiver_id == 1:
-        return (0, 0)
-    elif receiver_id == 2:
-        return (n, 0)
-    elif receiver_id == 3:
-        return (n, m)
-    elif receiver_id == 4:
-        return (0, m)
-    else:
-        raise ValueError("Invalid receiver ID")
-
 
 def rssi_to_distance(rssi, rssi_at_1m=-50, path_loss_exponent=2):
     # d = 10^((RSSI_at_1m - RSSI) / (10 * n))
     return 10 ** ((rssi_at_1m - rssi) / (10 * path_loss_exponent))
 
-def triangulation_error(point, receivers, distances):
+# def triangulation_error(point, receivers, distances):
+#     x, y = point
+#     error = []
+#     for (rx, ry), d in zip(receivers, distances):
+#         error.append(np.sqrt((x - rx)**2 + (y - ry)**2) - d)
+#     return error
+
+def weighted_triangulation_error(point, receivers, distances):
     x, y = point
     error = []
     for (rx, ry), d in zip(receivers, distances):
-        error.append(np.sqrt((x - rx)**2 + (y - ry)**2) - d)
+        calculated_distance = np.sqrt((x - rx)**2 + (y - ry)**2)
+        weight = 1 / (d + 0.001)
+        error.append((calculated_distance - d) * weight)
     return error
+
+def get_receiver_coords(receiver_id, n, m):
+    gateways = {
+        1: (0, 0),
+        2: (n, 0),
+        3: (0, m),
+        4: (n, m),
+    }
+    return gateways.get(receiver_id)
 
 def locate_device(receivers_data, n, m):
     receivers = []
@@ -67,25 +77,50 @@ def locate_device(receivers_data, n, m):
         receivers.append(coords)
         distances.append(distance)
 
+        print(f"[DEBUG]: MAC {mac}; ID {receiver_id}; DIST {distance}; RSSI {rssi}")
+
     if len(receivers) > 3:
         combined = list(zip(receivers, distances))
         combined.sort(key=lambda x: x[1])
         receivers, distances = zip(*combined[:3])
 
+    if not receivers:
+        return None, None
+
     initial_guess = np.mean(receivers, axis=0)
 
     result = least_squares(
-        triangulation_error,
+        weighted_triangulation_error,
         initial_guess,
         args=(receivers, distances),
         method='lm'
     )
 
-    x, y = result.x
-    x = max(0, min(n, x))
-    y = max(0, min(m, y))
+    estimated_x, estimated_y = result.x
 
-    return x, y
+    min_rx = min(r[0] for r in receivers)
+    max_rx = max(r[0] for r in receivers)
+    min_ry = min(r[1] for r in receivers)
+    max_ry = max(r[1] for r in receivers)
+
+    range_x = max_rx - min_rx
+    range_y = max_ry - min_ry
+
+    # Normalize 
+    if range_x > 0:
+        normalized_x = (estimated_x - min_rx) / range_x * n
+    else:
+        normalized_x = n / 2
+
+    if range_y > 0:
+        normalized_y = (estimated_y - min_ry) / range_y * m
+    else:
+        normalized_y = m / 2
+
+    normalized_x = max(0, min(n, normalized_x))
+    normalized_y = max(0, min(m, normalized_y))
+
+    return normalized_x, normalized_y
 
 # ++++++++++++++++++++++++++++++++++++++++++++++++++++
 
