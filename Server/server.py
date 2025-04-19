@@ -7,6 +7,48 @@ import time
 import socket
 import numpy as np
 from scipy.optimize import least_squares
+import sys
+import datetime
+import os
+
+# ================== Logger =======================
+
+def setup_logging(log_file='program_log.txt'):
+    log_dir = os.path.dirname(log_file)
+    if log_dir and not os.path.exists(log_dir):
+        os.makedirs(log_dir)
+    
+    log_file_handle = open(log_file, 'a+', encoding='utf-8')
+    
+    startup_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    log_file_handle.write(f"\n\n=== SERVER STARTED [{startup_time}] ===\n")
+    
+    return log_file_handle
+
+log_file = 'logs/server_logs.txt'
+try:
+    log_handle = setup_logging(log_file)
+except Exception as e:
+    print(f"[ERROR] - Logger: {e}")
+    log_handle = None
+
+def log_message(message, print_to_console=True):
+    timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    log_entry = f"[{timestamp}] {message}"
+    
+    if print_to_console:
+        print(message)
+    
+    if log_handle:
+        try:
+            log_handle.write(log_entry + "\n")
+            log_handle.flush()
+        except Exception as e:
+            print(f"[ERROR] - Logger: {e}")
+
+
+# =================================================
+
 
 app = Flask(__name__)
 socketio = SocketIO(app)
@@ -22,18 +64,18 @@ def update_device_list(device_name, x, y):
     if device_name in devices:
         devices[device_name]["x"] = x
         devices[device_name]["y"] = y
-        print(f"Updated {device_name} coordinates to ({x}, {y})")
+        log_message(f"Updated {device_name} coordinates to ({x}, {y})")
     else:
         devices[device_name] = {"x": x, "y": y}
-        print(f"Added new device {device_name} with coordinates ({x}, {y})")
+        log_message(f"Added new device {device_name} with coordinates ({x}, {y})")
 
 @app.route("/")
 def index():
     gateways = {
         1: {"x": 0, "y": 0},
         2: {"x": 100, "y": 0},
-        3: {"x": 100, "y": 100},
-        4: {"x": 0, "y": 100},
+        3: {"x": 0, "y": 100},
+        4: {"x": 100, "y": 100},
     }
     return render_template("map.html", gateways=gateways)
 
@@ -42,13 +84,6 @@ def index():
 def rssi_to_distance(rssi, rssi_at_1m=-50, path_loss_exponent=2):
     # d = 10^((RSSI_at_1m - RSSI) / (10 * n))
     return 10 ** ((rssi_at_1m - rssi) / (10 * path_loss_exponent))
-
-# def triangulation_error(point, receivers, distances):
-#     x, y = point
-#     error = []
-#     for (rx, ry), d in zip(receivers, distances):
-#         error.append(np.sqrt((x - rx)**2 + (y - ry)**2) - d)
-#     return error
 
 def weighted_triangulation_error(point, receivers, distances):
     x, y = point
@@ -77,7 +112,7 @@ def locate_device(receivers_data, n, m):
         receivers.append(coords)
         distances.append(distance)
 
-        print(f"[DEBUG]: MAC {mac}; ID {receiver_id}; DIST {distance}; RSSI {rssi}")
+        log_message(f"[DEBUG]: MAC {mac}; ID {receiver_id}; DIST {distance}; RSSI {rssi}")
 
     if len(receivers) > 3:
         combined = list(zip(receivers, distances))
@@ -127,26 +162,26 @@ def locate_device(receivers_data, n, m):
 devices_rssi_data = {}
 
 def coordinate_calculation(n=100, m=100):
-    print("\n[+] Checking for devices to triangulate...")
+    log_message("\n[+] Checking for devices to triangulate...")
     for item in devices_rssi_data:
-        print(item)
+        log_message(item)
     for device_mac, rssi_measurements in devices_rssi_data.items():
         if len(rssi_measurements) >= 3:
-            print(f"\n[+] Performing triangulation for device: {device_mac} with data:")
+            log_message(f"\n[+] Performing triangulation for device: {device_mac} with data:")
             receivers_data = []
             for gateway_id, rssi in rssi_measurements:
-                print(f"    Gateway ID: {gateway_id}, RSSI: {rssi}")
+                log_message(f"    Gateway ID: {gateway_id}, RSSI: {rssi}")
                 receivers_data.append([gateway_id, device_mac, rssi])
 
             try:
                 x, y = locate_device(receivers_data, n, m)
-                print(f"[+] Calculated coordinates for {device_mac}: ({x:.2f}, {y:.2f})")
+                log_message(f"[+] Calculated coordinates for {device_mac}: ({x:.2f}, {y:.2f})")
                 update_device_list(device_mac, x, y)
-                print(devices)
+                log_message(devices)
             except Exception as e:
-                print(f"[!] Error during triangulation for {device_mac}: {e}")
+                log_message(f"[!] Error during triangulation for {device_mac}: {e}")
         else:
-            print(f"[!] Not enough data for triangulation for device: {device_mac}. Current data points: {len(rssi_measurements)}")
+            log_message(f"[!] Not enough data for triangulation for device: {device_mac}. Current data points: {len(rssi_measurements)}")
 
 def rssi_process(input_line):
     try:
@@ -163,9 +198,9 @@ def rssi_process(input_line):
         devices_rssi_data[device_mac].append((gateway_id, rssi))
 
     except ValueError as e:
-        print(f"[!] Error parsing RSSI data: {e}. Expected format: gateway_id,device_mac,rssi")
+        log_message(f"[!] Error parsing RSSI data: {e}. Expected format: gateway_id,device_mac,rssi")
     except Exception as e:
-        print(f"[!] Unexpected error processing RSSI data: {e}")
+        log_message(f"[!] Unexpected error processing RSSI data: {e}")
 
 def triangulation_handle():
     cycle_counter = 0
@@ -173,42 +208,42 @@ def triangulation_handle():
         time.sleep(1)
 
         coordinate_calculation()
-        print(f"================== [{cycle_counter}] ==================")
+        log_message(f"--------- [{cycle_counter}] ---------")
 
         cycle_counter = (cycle_counter + 1) % 20
         if cycle_counter == 9:
-            print("[!] Clearing devices_rssi_data")
+            log_message("[!] Clearing devices_rssi_data")
             devices_rssi_data.clear()
 
 HOST = '0.0.0.0'
 PORT = 8080
 
 def handle_client(conn, addr):
-    print(f"\n[+] Connected by {addr}")
+    log_message(f"\n[+] Connected by {addr}")
     try:
         with conn:
             while True:
                 try:
                     data = conn.recv(1024)
                     if not data:
-                        print(f"[-] Connection closed by {addr}")
+                        log_message(f"[-] Connection closed by {addr}")
                         break
                     for line in data.decode().splitlines():
                         if line.strip():
-                            print(f"handle_client: [FROM {addr}] {line}")
+                            log_message(f"handle_client: [FROM {addr}] {line}")
                             rssi_process(line)
                 except ConnectionResetError:
-                    print(f"[!] Connection reset by {addr}")
+                    log_message(f"[!] Connection reset by {addr}")
                     break
                 except socket.timeout:
                     continue
                 except Exception as e:
-                    print(f"[!] Error in connection with {addr}: {e}")
+                    log_message(f"[!] Error in connection with {addr}: {e}")
                     break
     except Exception as e:
-        print(f"[!] Connection handling error: {e}")
+        log_message(f"[!] Connection handling error: {e}")
     finally:
-        print(f"[~] Disconnected from {addr}")
+        log_message(f"[~] Disconnected from {addr}")
 
 def run_server():
     while True:
@@ -218,7 +253,7 @@ def run_server():
             server.bind((HOST, PORT))
             server.listen(5)
 
-            print(f"\n[+] Server listening on {HOST}:{PORT}")
+            log_message(f"\n[+] Server listening on {HOST}:{PORT}")
 
             while True:
                 try:
@@ -226,15 +261,15 @@ def run_server():
                     client_thread = Thread(target=handle_client, args=(conn, addr), daemon=True)
                     client_thread.start()
                 except KeyboardInterrupt:
-                    print("\n[!] Server shutdown requested")
+                    log_message("\n[!] Server shutdown requested")
                     server.close()
                     return
                 except Exception as e:
-                    print(f"[!] Accept error: {e}")
+                    log_message(f"[!] Accept error: {e}")
                     continue
 
         except Exception as e:
-            print(f"[!] Server error: {e}")
+            log_message(f"[!] Server error: {e}")
             time.sleep(5)
             continue
 
@@ -243,3 +278,6 @@ if __name__ == "__main__":
     Thread(target=update_devices, daemon=True).start()
     Thread(target=triangulation_handle, daemon=True).start()
     socketio.run(app, host="0.0.0.0", port=5000)
+
+    if log_handle:
+        log_handle.close()
