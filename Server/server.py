@@ -81,7 +81,7 @@ def index():
 
 # ============ TRIANGULATION ==================
 
-def rssi_to_distance(rssi, rssi_at_1m=-50, path_loss_exponent=2):
+def rssi_to_distance(rssi, rssi_at_1m=-60, path_loss_exponent=3):
     # d = 10^((RSSI_at_1m - RSSI) / (10 * n))
     return 10 ** ((rssi_at_1m - rssi) / (10 * path_loss_exponent))
 
@@ -163,8 +163,8 @@ devices_rssi_data = {}
 
 def coordinate_calculation(n=100, m=100):
     log_message("\n[+] Checking for devices to triangulate...")
-    for item in devices_rssi_data:
-        log_message(item)
+    for device_mac, rssi_measurements in devices_rssi_data.items():
+        log_message(f"GATEWAY[{rssi_measurements[0][0]}]\tMAC: {device_mac}\tRSSI: {rssi_measurements[0][1]}\tDIS: {round(rssi_to_distance(rssi_measurements[0][1]),2)}")
     for device_mac, rssi_measurements in devices_rssi_data.items():
         if len(rssi_measurements) >= 3:
             log_message(f"\n[+] Performing triangulation for device: {device_mac} with data:")

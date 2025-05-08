@@ -6,13 +6,13 @@
 
 #include <wificonfig.h>
 
-const char* serverIP = "192.168.0.182";
+const char* serverIP = "10.213.171.148";
 const uint16_t serverPort = 8080;
 
-#define GATEWAY_ID "2"
+#define GATEWAY_ID "4"
 #define SCAN_TIME 5
 
-const char* allowedMacs[] = { "48872d9cfb38" };
+const char* allowedMacs[] = { "48872d9cfb38", "48872d9cf51b" };
 const int allowedMacsCount = sizeof(allowedMacs) / sizeof(allowedMacs[0]);
 
 
