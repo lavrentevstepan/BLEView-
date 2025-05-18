@@ -1,114 +1,294 @@
 <!DOCTYPE html>
-<html>
+<html lang="ru">
 <head>
-    <title>Карта устройств</title>
-    <style>
-        #map {
-            width: 500px;
-            height: 500px;
-            border: 1px solid black;
-            position: relative;
-            background-color: #f9f9f9;
-        }
-        .device {
-            width: 10px;
-            height: 10px;
-            background: red;
-            border-radius: 50%;
-            position: absolute;
-            transform: translate(-5px, -5px);
-        }
-        .label {
-            position: absolute;
-            font-size: 12px;
-            transform: translate(-50%, -150%);
-            white-space: nowrap;
-            background: rgba(255,255,255,0.8);
-            padding: 2px 4px;
-            border-radius: 4px;
-            border: 1px solid #ccc;
-            pointer-events: none;
-        }
-        .locator-id {
-            position: absolute;
-            font-size: 14px;
-            font-weight: bold;
-            padding: 5px;
-            background-color: rgba(255, 255, 255, 0.7);
-            border-radius: 5px;
-            pointer-events: none;
-        }
-        .top-left {
-            top: 5px;
-            left: 5px;
-        }
-        .top-right {
-            top: 5px;
-            right: 5px;
-        }
-        .bottom-left {
-            bottom: 5px;
-            left: 5px;
-        }
-        .bottom-right {
-            bottom: 5px;
-            right: 5px;
-        }
-    </style>
+  <meta charset="UTF-8">
+  <title>Карта устройств</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #f0f2f5;
+      margin: 0;
+      padding: 20px;
+      transition: background 0.3s, color 0.3s;
+    }
+
+    h1 {
+      text-align: center;
+      color: #333;
+    }
+
+    #map {
+      width: 600px;
+      height: 600px;
+      margin: 0 auto;
+      background-color: transparent;
+      border: 1px solid #ccc;
+      box-shadow: 0 0 15px rgba(0, 0, 0, 0.1);
+      position: relative;
+      border-radius: 15px;
+      background-size: 40px 40px;
+      background-image:
+        linear-gradient(to right, #dcdcdc 1px, transparent 1px),
+        linear-gradient(to bottom, #dcdcdc 1px, transparent 1px);
+      background-repeat: repeat;
+    }
+
+    .device {
+      width: 14px;
+      height: 14px;
+      background: radial-gradient(circle, #ff3b3b, #b30000);
+      border-radius: 50%;
+      position: absolute;
+      transform: translate(-50%, -50%);
+      animation: pop 0.3s ease;
+      box-shadow: 0 0 6px rgba(255, 0, 0, 0.5);
+    }
+
+    .label {
+      position: absolute;
+      font-size: 13px;
+      transform: translate(-50%, -150%);
+      background: rgba(255, 255, 255, 0.9);
+      padding: 2px 6px;
+      border-radius: 6px;
+      border: 1px solid #aaa;
+      box-shadow: 1px 1px 3px rgba(0,0,0,0.1);
+      white-space: nowrap;
+    }
+
+    .locator-id {
+      position: absolute;
+      font-size: 14px;
+      font-weight: 600;
+      padding: 6px 10px;
+      background-color: rgba(0, 123, 255, 0.2);
+      border: 1px solid rgba(0, 123, 255, 0.4);
+      border-radius: 6px;
+      pointer-events: none;
+      color: #007bff;
+    }
+
+    .top-left    { top: 10px; left: 10px; }
+    .top-right   { top: 10px; right: 10px; }
+    .bottom-left { bottom: 10px; left: 10px; }
+    .bottom-right{ bottom: 10px; right: 10px; }
+
+    @keyframes pop {
+      0%   { transform: scale(0.5) translate(-50%, -50%); opacity: 0; }
+      100% { transform: scale(1) translate(-50%, -50%); opacity: 1; }
+    }
+
+    /* === Темная тема === */
+    body.dark-theme {
+      background: #1e1e1e;
+      color: #f0f0f0;
+    }
+
+    body.dark-theme h1 {
+      color: #f0f0f0;
+    }
+
+    body.dark-theme .label {
+      background: rgba(30, 30, 30, 0.9);
+      border: 1px solid #555;
+      color: #fff;
+    }
+
+    body.dark-theme .locator-id {
+      background-color: rgba(0, 123, 255, 0.15);
+      border: 1px solid rgba(0, 123, 255, 0.5);
+      color: #66b2ff;
+    }
+
+    body.dark-theme #map {
+      background-image:
+        linear-gradient(to right, #555 1px, transparent 1px),
+        linear-gradient(to bottom, #555 1px, transparent 1px);
+    }
+
+    /* === Кнопка и меню настроек === */
+    #settings-button {
+      position: fixed;
+      top: 15px;
+      right: 20px;
+      z-index: 1000;
+      background: #007bff;
+      color: white;
+      border: none;
+      padding: 10px 14px;
+      font-size: 16px;
+      border-radius: 8px;
+      cursor: pointer;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+    }
+
+    body.dark-theme #settings-button {
+      background: #444;
+    }
+
+    #settings-menu {
+      position: fixed;
+      top: 60px;
+      right: 20px;
+      background: white;
+      border-radius: 10px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+      padding: 15px;
+      width: 250px;
+      display: none;
+      flex-direction: column;
+      gap: 10px;
+      animation: fadeIn 0.3s ease forwards;
+      z-index: 999;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(-10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    body.dark-theme #settings-menu {
+      background: #2a2a2a;
+      color: #fff;
+    }
+
+    #theme-switch {
+      padding: 8px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+
+    #drop-area {
+      border: 2px dashed #aaa;
+      border-radius: 6px;
+      padding: 20px;
+      text-align: center;
+      font-size: 14px;
+      color: #666;
+      background: #fafafa;
+    }
+
+    body.dark-theme #drop-area {
+      background: #3a3a3a;
+      color: #ccc;
+      border-color: #666;
+    }
+  </style>
 </head>
 <body>
-    <h1>Карта устройств (100×100)</h1>
-    <div id="map">
-        <div class="locator-id top-left" id="locator-1"></div>
-        <div class="locator-id top-right" id="locator-2"></div>
-        <div class="locator-id bottom-left" id="locator-3"></div>
-        <div class="locator-id bottom-right" id="locator-4"></div>
-    </div>
+  <button id="settings-button">⚙ Настройки</button>
 
-    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
-    <script>
-        const socket = io();
-        const map = document.getElementById("map");
-        const locator1 = document.getElementById("locator-1");
-        const locator2 = document.getElementById("locator-2");
-        const locator3 = document.getElementById("locator-3");
-        const locator4 = document.getElementById("locator-4");
+  <div id="settings-menu">
+    <button id="theme-switch">🌙 Тёмная тема</button>
+    <div id="drop-area">Фоновое изображение</div>
+  </div>
 
-        socket.on("update_devices", function(devices) {
-            const deviceElements = map.querySelectorAll('.device, .label');
-            deviceElements.forEach(el => el.remove());
+  <h1>Карта устройств (100×100)</h1>
+  <div id="map">
+    <div class="locator-id top-left" id="locator-1"></div>
+    <div class="locator-id top-right" id="locator-2"></div>
+    <div class="locator-id bottom-left" id="locator-3"></div>
+    <div class="locator-id bottom-right" id="locator-4"></div>
+  </div>
 
-            for (const [id, pos] of Object.entries(devices)) {
-                const device = document.createElement("div");
-                device.className = "device";
-                device.style.left = `${pos.x}%`;
-                device.style.top = `${pos.y}%`;
+  <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+  <script>
+    const socket = io();
+    const map = document.getElementById("map");
+    const locator1 = document.getElementById("locator-1");
+    const locator2 = document.getElementById("locator-2");
+    const locator3 = document.getElementById("locator-3");
+    const locator4 = document.getElementById("locator-4");
 
-                const label = document.createElement("div");
-                label.className = "label";
-                label.style.left = `${pos.x}%`;
-                label.style.top = `${pos.y}%`;
-                label.innerText = id;
+    socket.on("update_devices", function(devices) {
+      const deviceElements = map.querySelectorAll('.device, .label');
+      deviceElements.forEach(el => el.remove());
 
-                map.appendChild(device);
-                map.appendChild(label);
-            }
-        });
+      for (const [id, pos] of Object.entries(devices)) {
+        const device = document.createElement("div");
+        device.className = "device";
+        device.style.left = `${pos.x}%`;
+        device.style.top = `${pos.y}%`;
 
-        fetch('/')
-            .then(response => response.text())
-            .then(html => {
-                const parser = new DOMParser();
-                const doc = parser.parseFromString(html, 'text/html');
-                const gatewaysData = JSON.parse(doc.getElementById('gateways-data').textContent);
-                locator1.innerText = `ID: 1`;
-                locator2.innerText = `ID: 2`;
-                locator3.innerText = `ID: 3`;
-                locator4.innerText = `ID: 4`;
-            });
-    </script>
-    <div style="display: none;" id="gateways-data">
-        {{ gateways|tojson }}
-    </div>
+        const label = document.createElement("div");
+        label.className = "label";
+        label.style.left = `${pos.x}%`;
+        label.style.top = `${pos.y}%`;
+        label.innerText = id;
+
+        map.appendChild(device);
+        map.appendChild(label);
+      }
+    });
+
+    fetch('/')
+      .then(response => response.text())
+      .then(html => {
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(html, 'text/html');
+        const gatewaysData = JSON.parse(doc.getElementById('gateways-data').textContent);
+        locator1.innerText = `ID: 1`;
+        locator2.innerText = `ID: 2`;
+        locator3.innerText = `ID: 3`;
+        locator4.innerText = `ID: 4`;
+      });
+
+    // Настройки и тема
+    const settingsBtn = document.getElementById('settings-button');
+    const settingsMenu = document.getElementById('settings-menu');
+    const themeSwitch = document.getElementById('theme-switch');
+
+    settingsBtn.addEventListener('click', () => {
+      settingsMenu.style.display = settingsMenu.style.display === 'flex' ? 'none' : 'flex';
+    });
+
+    themeSwitch.addEventListener('click', () => {
+      document.body.classList.toggle('dark-theme');
+      updateThemeLabel();
+    });
+
+    function updateThemeLabel() {
+      const isDark = document.body.classList.contains('dark-theme');
+      themeSwitch.innerText = isDark ? '☀️ Светлая тема' : '🌙 Тёмная тема';
+    }
+
+    updateThemeLabel();
+
+    // Drag & Drop
+    const dropArea = document.getElementById('drop-area');
+
+    dropArea.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      dropArea.style.borderColor = '#007bff';
+    });
+
+    dropArea.addEventListener('dragleave', () => {
+      dropArea.style.borderColor = '#aaa';
+    });
+
+    dropArea.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropArea.style.borderColor = '#aaa';
+      const file = e.dataTransfer.files[0];
+      if (file && file.type.startsWith('image/')) {
+        const reader = new FileReader();
+        reader.onload = function(evt) {
+          map.style.backgroundImage = `
+            url(${evt.target.result}),
+            linear-gradient(to right, #dcdcdc 1px, transparent 1px),
+            linear-gradient(to bottom, #dcdcdc 1px, transparent 1px)
+          `;
+          map.style.backgroundSize = "cover, 40px 40px";
+          map.style.backgroundRepeat = "no-repeat, repeat";
+        };
+        reader.readAsDataURL(file);
+      }
+    });
+  </script>
+
+  <div style="display: none;" id="gateways-data">
+    {{ gateways|tojson }}
+  </div>
 </body>
 </html>

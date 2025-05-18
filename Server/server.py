@@ -61,12 +61,18 @@ def update_devices():
         socketio.emit("update_devices", devices)
 
 def update_device_list(device_name, x, y):
+    now = time.time()
     if device_name in devices:
         devices[device_name]["x"] = x
         devices[device_name]["y"] = y
+        devices[device_name]["last_seen"] = now
         log_message(f"Updated {device_name} coordinates to ({x}, {y})")
     else:
-        devices[device_name] = {"x": x, "y": y}
+        devices[device_name] = {
+            "x": x,
+            "y": y,
+            "last_seen": now
+        }
         log_message(f"Added new device {device_name} with coordinates ({x}, {y})")
 
 @app.route("/")
@@ -202,12 +208,25 @@ def rssi_process(input_line):
     except Exception as e:
         log_message(f"[!] Unexpected error processing RSSI data: {e}")
 
+def cleanup_inactive_devices(timeout=10):
+    now = time.time()
+    to_remove = []
+
+    for mac, info in list(devices.items()):
+        if now - info.get("last_seen", 0) > timeout:
+            to_remove.append(mac)
+
+    for mac in to_remove:
+        del devices[mac]
+        log_message(f"[!] Removed inactive device {mac} (no signal for {timeout}s)")
+
 def triangulation_handle():
     cycle_counter = 0
     while True:
         time.sleep(1)
 
         coordinate_calculation()
+        cleanup_inactive_devices(timeout=10) 
         log_message(f"--------- [{cycle_counter}] ---------")
 
         cycle_counter = (cycle_counter + 1) % 20
